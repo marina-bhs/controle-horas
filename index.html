@@ -94,10 +94,11 @@
     display:block; font-size:11px; font-weight:700; letter-spacing:.06em;
     color:var(--muted); text-transform:uppercase; margin:14px 0 7px;
   }
-  input[type=text], input[type=datetime-local], input[type=number]{
+  input[type=text], input[type=datetime-local], input[type=number], input[type=date]{
     width:100%; background:var(--input-bg); border:1px solid var(--card-border);
     color:var(--text); font-family:'Inter', sans-serif; font-size:14px;
     padding:11px 13px; border-radius:9px; outline:none;
+    color-scheme: dark;
   }
   input::placeholder{ color:#565b63; }
   input:focus{ border-color:#3a4048; }
@@ -153,6 +154,21 @@
   @media (max-width:480px){
     .history-head-row{ flex-direction:column; align-items:flex-start; }
   }
+
+  .filter-row{
+    display:flex; gap:8px; flex-wrap:wrap; align-items:center;
+    margin-bottom:16px; padding-bottom:16px; border-bottom:1px solid var(--card-border);
+  }
+  .filter-row input[type=text]{ flex:1 1 180px; }
+  .filter-row input[type=date]{ flex:0 1 150px; }
+  select{
+    background:var(--input-bg); border:1px solid var(--card-border);
+    color:var(--text); font-family:'Inter', sans-serif; font-size:14px;
+    padding:11px 13px; border-radius:9px; outline:none;
+  }
+  select:focus{ border-color:#3a4048; }
+  .filter-row select{ flex:0 1 160px; }
+  .filter-row .btn-ghost{ flex:0 0 auto; }
   .history-empty{ color:var(--muted); font-size:13px; padding:20px 0; text-align:center; }
   .history-row{
     display:flex; align-items:center; gap:14px; padding:12px 0;
@@ -292,6 +308,13 @@
         <input type="file" id="importFile" accept=".xlsx,.xls" style="display:none;">
       </div>
     </div>
+    <div class="filter-row" id="filterRow">
+      <input type="text" id="filterTexto" placeholder="Buscar tarefa...">
+      <select id="filterTipo"><option value="">Todos os tipos</option></select>
+      <input type="date" id="filterDe" title="De">
+      <input type="date" id="filterAte" title="Até">
+      <button class="btn-ghost" id="filterClearBtn">Limpar</button>
+    </div>
     <div id="historyList"><div class="history-empty">Carregando…</div></div>
   </div>
 
@@ -393,6 +416,7 @@ async function deleteEntry(id){
 function render(){
   renderStats();
   renderTypeBars();
+  populateFilterTipoOptions();
   renderHistory();
   renderLastEntry();
 }
@@ -427,13 +451,65 @@ function renderTypeBars(){
   }).join('');
 }
 
+// ---- Filtros do histórico ----
+const filterState = { texto:'', tipo:'', de:'', ate:'' };
+
+function populateFilterTipoOptions(){
+  const select = document.getElementById('filterTipo');
+  const tipos = Array.from(new Set(entries.map(e => (e.tipo||'Geral').trim() || 'Geral'))).sort();
+  const current = select.value;
+  select.innerHTML = '<option value="">Todos os tipos</option>' +
+    tipos.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
+  if(tipos.includes(current)) select.value = current;
+}
+
+function getFilteredEntries(){
+  return entries.filter(e=>{
+    if(filterState.texto && !(e.tarefa||'').toLowerCase().includes(filterState.texto.toLowerCase())) return false;
+    if(filterState.tipo && ((e.tipo||'Geral').trim() || 'Geral') !== filterState.tipo) return false;
+    if(filterState.de && e.date < filterState.de) return false;
+    if(filterState.ate && e.date > filterState.ate) return false;
+    return true;
+  });
+}
+
+document.getElementById('filterTexto').addEventListener('input', (ev)=>{
+  filterState.texto = ev.target.value.trim();
+  renderHistory();
+});
+document.getElementById('filterTipo').addEventListener('change', (ev)=>{
+  filterState.tipo = ev.target.value;
+  renderHistory();
+});
+document.getElementById('filterDe').addEventListener('change', (ev)=>{
+  filterState.de = ev.target.value;
+  renderHistory();
+});
+document.getElementById('filterAte').addEventListener('change', (ev)=>{
+  filterState.ate = ev.target.value;
+  renderHistory();
+});
+document.getElementById('filterClearBtn').addEventListener('click', ()=>{
+  filterState.texto = ''; filterState.tipo = ''; filterState.de = ''; filterState.ate = '';
+  document.getElementById('filterTexto').value = '';
+  document.getElementById('filterTipo').value = '';
+  document.getElementById('filterDe').value = '';
+  document.getElementById('filterAte').value = '';
+  renderHistory();
+});
+
 function renderHistory(){
   const list = document.getElementById('historyList');
   if(entries.length===0){
     list.innerHTML = '<div class="history-empty">Nenhum registro ainda. Inicie o cronômetro ou adicione manualmente.</div>';
     return;
   }
-  list.innerHTML = entries.slice(0,50).map(e=>{
+  const filtered = getFilteredEntries();
+  if(filtered.length===0){
+    list.innerHTML = '<div class="history-empty">Nenhum registro encontrado para esse filtro.</div>';
+    return;
+  }
+  list.innerHTML = filtered.slice(0,50).map(e=>{
     const color = colorForType(e.tipo);
     const dateFmt = new Date(e.createdAt).toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'});
     return `<div class="history-row">
