@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <title>Controle de Horas</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230b0d10'/%3E%3Ccircle cx='16' cy='16' r='10' fill='none' stroke='%23f5a524' stroke-width='2.5'/%3E%3Cpath d='M16 10v6l4 3' fill='none' stroke='%23f5a524' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
 
@@ -165,6 +166,23 @@
   .h-dur{ font-family:'JetBrains Mono', monospace; font-size:14px; color:var(--accent); font-weight:600; flex-shrink:0; }
   .h-del{ background:none; border:none; color:var(--muted); cursor:pointer; font-size:16px; padding:4px 6px; flex-shrink:0; }
   .h-del:hover{ color:var(--danger); }
+  .h-edit{ background:none; border:none; color:var(--muted); cursor:pointer; font-size:15px; padding:4px 6px; flex-shrink:0; }
+  .h-edit:hover{ color:var(--accent); }
+
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(0,0,0,.6);
+    display:flex; align-items:center; justify-content:center;
+    z-index:100; padding:20px;
+  }
+  .modal-overlay.hidden{ display:none; }
+  .modal-box{
+    background:var(--card); border:1px solid var(--card-border);
+    border-radius:var(--radius); padding:24px; width:100%; max-width:400px;
+  }
+  .modal-title{ font-size:14px; font-weight:700; margin-bottom:4px; color:var(--text); }
+  .modal-actions{ display:flex; gap:10px; margin-top:20px; }
+  .modal-actions .btn{ margin-top:0; }
+  .btn-secondary{ background:var(--input-bg); color:var(--text); border:1px solid var(--card-border); }
 
   @media (max-width: 760px){
     .stats{ grid-template-columns:1fr; }
@@ -279,6 +297,29 @@
 
 </div>
 
+<div class="modal-overlay hidden" id="editModal">
+  <div class="modal-box">
+    <div class="modal-title">Editar registro</div>
+
+    <label class="field-label">Tarefa</label>
+    <input type="text" id="editTarefa">
+
+    <label class="field-label">Tipo</label>
+    <input type="text" id="editTipo">
+
+    <label class="field-label">Duração (minutos)</label>
+    <input type="number" id="editDuracao" min="1">
+
+    <label class="field-label">Data/hora</label>
+    <input type="datetime-local" id="editCreatedAt">
+
+    <div class="modal-actions">
+      <button class="btn btn-secondary" id="editCancelBtn">Cancelar</button>
+      <button class="btn btn-primary" id="editSaveBtn">Salvar</button>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 const STORAGE_KEY = 'controle-horas:entries';
@@ -320,8 +361,8 @@ function updateDateLabel(){
 
 async function loadEntries(){
   try{
-    const res = await window.storage.get(STORAGE_KEY, false);
-    entries = res ? JSON.parse(res.value) : [];
+    const raw = localStorage.getItem(STORAGE_KEY);
+    entries = raw ? JSON.parse(raw) : [];
   }catch(e){
     entries = [];
   }
@@ -330,9 +371,10 @@ async function loadEntries(){
 
 async function persist(){
   try{
-    await window.storage.set(STORAGE_KEY, JSON.stringify(entries), false);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
   }catch(e){
     console.error('Falha ao salvar', e);
+    alert('Não foi possível salvar o registro. O armazenamento do navegador pode estar cheio ou desabilitado.');
   }
 }
 
@@ -401,9 +443,13 @@ function renderHistory(){
         <div class="h-meta">${escapeHtml(e.tipo || 'Geral')} · ${dateFmt}</div>
       </div>
       <div class="h-dur">${fmtDur(e.duracaoMin)}</div>
+      <button class="h-edit" data-id="${e.id}" title="Editar">✎</button>
       <button class="h-del" data-id="${e.id}" title="Excluir">✕</button>
     </div>`;
   }).join('');
+  list.querySelectorAll('.h-edit').forEach(btn=>{
+    btn.addEventListener('click', ()=> openEditModal(btn.dataset.id));
+  });
   list.querySelectorAll('.h-del').forEach(btn=>{
     btn.addEventListener('click', ()=> deleteEntry(btn.dataset.id));
   });
@@ -425,6 +471,57 @@ function renderLastEntry(){
     document.getElementById('timerTipo').value = last.tipo || '';
   };
 }
+
+// ---- Editar registro ----
+let editingId = null;
+
+function toLocalInputValue(iso){
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function openEditModal(id){
+  const entry = entries.find(e => e.id === id);
+  if(!entry) return;
+  editingId = id;
+  document.getElementById('editTarefa').value = entry.tarefa || '';
+  document.getElementById('editTipo').value = entry.tipo || '';
+  document.getElementById('editDuracao').value = entry.duracaoMin;
+  document.getElementById('editCreatedAt').value = toLocalInputValue(entry.createdAt);
+  document.getElementById('editModal').classList.remove('hidden');
+}
+
+function closeEditModal(){
+  editingId = null;
+  document.getElementById('editModal').classList.add('hidden');
+}
+
+document.getElementById('editCancelBtn').addEventListener('click', closeEditModal);
+document.getElementById('editModal').addEventListener('click', (ev)=>{
+  if(ev.target.id === 'editModal') closeEditModal();
+});
+
+document.getElementById('editSaveBtn').addEventListener('click', async ()=>{
+  if(!editingId) return;
+  const entry = entries.find(e => e.id === editingId);
+  if(!entry) return;
+
+  const duracaoMin = parseFloat(document.getElementById('editDuracao').value);
+  const createdAtVal = document.getElementById('editCreatedAt').value;
+  if(!duracaoMin || duracaoMin<=0){ alert('Informe uma duração válida.'); return; }
+  if(!createdAtVal){ alert('Informe a data/hora.'); return; }
+
+  const createdAt = new Date(createdAtVal).toISOString();
+  entry.tarefa = document.getElementById('editTarefa').value.trim();
+  entry.tipo = document.getElementById('editTipo').value.trim();
+  entry.duracaoMin = duracaoMin;
+  entry.createdAt = createdAt;
+  entry.date = createdAt.slice(0,10);
+
+  await persist();
+  render();
+  closeEditModal();
+});
 
 function escapeHtml(s){
   return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
