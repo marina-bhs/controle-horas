@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Controle de Horas</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+  :root{
+    --bg: #0b0d10;
+    --card: #14171b;
+    --card-border: #21252b;
+    --input-bg: #1a1e24;
+    --text: #eceef0;
+    --muted: #868c96;
+    --accent: #f5a524;
+    --accent-dim: rgba(245,165,36,0.16);
+    --teal: #2dd4bf;
+    --purple: #9d84f5;
+    --danger: #e5586b;
+    --radius: 14px;
+  }
+
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Inter', system-ui, sans-serif;
+    padding:28px 20px 60px;
+    min-height:100vh;
+  }
+  .wrap{ max-width:1040px; margin:0 auto; }
+
+  .topbar{
+    display:flex; align-items:center; justify-content:space-between;
+    margin-bottom:22px;
+  }
+  .topbar-left{ display:flex; align-items:center; gap:10px; }
+  .dot{
+    width:8px; height:8px; border-radius:50%;
+    background:var(--accent);
+    box-shadow:0 0 0 4px var(--accent-dim);
+  }
+  .brand{ font-weight:600; font-size:14px; color:var(--muted); letter-spacing:.02em; }
+  .today-pill{
+    font-size:13px; color:var(--muted);
+    background:var(--card); border:1px solid var(--card-border);
+    padding:7px 14px; border-radius:999px;
+  }
+
+  .stats{
+    display:grid; grid-template-columns:repeat(3,1fr); gap:14px;
+    margin-bottom:18px;
+  }
+  .stat-card{
+    background:var(--card); border:1px solid var(--card-border);
+    border-radius:var(--radius); padding:18px 20px;
+  }
+  .stat-label{
+    font-size:11px; font-weight:700; letter-spacing:.08em; color:var(--muted);
+    text-transform:uppercase; margin-bottom:10px;
+  }
+  .stat-value{
+    font-family:'JetBrains Mono', monospace; font-size:26px; font-weight:700;
+    color:var(--accent);
+  }
+
+  .panels{
+    display:grid; grid-template-columns:1fr 1fr; gap:14px;
+    margin-bottom:14px; align-items:start;
+  }
+  .panel{
+    background:var(--card); border:1px solid var(--card-border);
+    border-radius:var(--radius); padding:22px;
+  }
+  .panel-head{
+    display:flex; align-items:center; gap:8px;
+    font-size:12px; font-weight:700; letter-spacing:.08em; color:var(--muted);
+    text-transform:uppercase; margin-bottom:20px;
+  }
+  .panel-head svg{ width:15px; height:15px; opacity:.8; }
+
+  .timer-display{
+    font-family:'JetBrains Mono', monospace;
+    font-size:52px; font-weight:700; letter-spacing:.02em;
+    text-align:center; margin-bottom:22px; color:var(--text);
+    font-variant-numeric: tabular-nums;
+  }
+  .timer-display.running{ color:var(--accent); }
+
+  label.field-label{
+    display:block; font-size:11px; font-weight:700; letter-spacing:.06em;
+    color:var(--muted); text-transform:uppercase; margin:14px 0 7px;
+  }
+  input[type=text], input[type=datetime-local], input[type=number]{
+    width:100%; background:var(--input-bg); border:1px solid var(--card-border);
+    color:var(--text); font-family:'Inter', sans-serif; font-size:14px;
+    padding:11px 13px; border-radius:9px; outline:none;
+  }
+  input::placeholder{ color:#565b63; }
+  input:focus{ border-color:#3a4048; }
+
+  .btn{
+    width:100%; border:none; border-radius:10px; padding:13px 16px;
+    font-weight:600; font-size:14px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    font-family:'Inter', sans-serif;
+  }
+  .btn-primary{ background:var(--accent); color:#1a1206; margin-top:18px; }
+  .btn-primary:hover{ filter:brightness(1.06); }
+  .btn-stop{ background:var(--danger); color:#2a0a10; }
+  .btn-ghost{
+    background:transparent; border:1px solid var(--card-border); color:var(--muted);
+    width:auto; padding:9px 14px; font-size:13px;
+  }
+  .btn-ghost:hover{ color:var(--text); border-color:#3a4048; }
+
+  .last-row{
+    display:flex; align-items:center; justify-content:space-between;
+    margin-top:18px; padding-top:16px; border-top:1px solid var(--card-border);
+    font-size:13px; color:var(--muted);
+  }
+  .last-row b{ color:var(--text); }
+
+  .tabs{ display:flex; gap:6px; background:var(--input-bg); padding:4px; border-radius:10px; margin-bottom:4px; }
+  .tab{
+    flex:1; text-align:center; padding:9px 0; border-radius:7px; font-size:13px;
+    font-weight:600; color:var(--muted); cursor:pointer; user-select:none;
+  }
+  .tab.active{ background:var(--card-border); color:var(--text); }
+
+  .grid-2{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+
+  .type-bars{ margin-top:22px; display:flex; flex-direction:column; gap:12px; }
+  .type-row{ display:flex; align-items:center; gap:12px; font-size:13px; }
+  .type-name{ width:74px; color:var(--muted); flex-shrink:0; }
+  .type-track{ flex:1; height:6px; background:var(--input-bg); border-radius:99px; overflow:hidden; }
+  .type-fill{ height:100%; border-radius:99px; }
+  .type-time{ width:70px; text-align:right; font-family:'JetBrains Mono', monospace; color:var(--text); flex-shrink:0; }
+
+  .history{
+    background:var(--card); border:1px solid var(--card-border);
+    border-radius:var(--radius); padding:22px;
+  }
+  .history-head-row{
+    display:flex; align-items:center; justify-content:space-between;
+    margin-bottom:20px; flex-wrap:wrap; gap:10px;
+  }
+  .excel-actions{ display:flex; gap:8px; }
+  .excel-actions .btn-ghost{ white-space:nowrap; }
+  @media (max-width:480px){
+    .history-head-row{ flex-direction:column; align-items:flex-start; }
+  }
+  .history-empty{ color:var(--muted); font-size:13px; padding:20px 0; text-align:center; }
+  .history-row{
+    display:flex; align-items:center; gap:14px; padding:12px 0;
+    border-bottom:1px solid var(--card-border);
+  }
+  .history-row:last-child{ border-bottom:none; }
+  .h-tipo-dot{ width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+  .h-main{ flex:1; min-width:0; }
+  .h-tarefa{ font-size:14px; color:var(--text); font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .h-meta{ font-size:12px; color:var(--muted); margin-top:2px; }
+  .h-dur{ font-family:'JetBrains Mono', monospace; font-size:14px; color:var(--accent); font-weight:600; flex-shrink:0; }
+  .h-del{ background:none; border:none; color:var(--muted); cursor:pointer; font-size:16px; padding:4px 6px; flex-shrink:0; }
+  .h-del:hover{ color:var(--danger); }
+
+  @media (max-width: 760px){
+    .stats{ grid-template-columns:1fr; }
+    .panels{ grid-template-columns:1fr; }
+    .grid-2{ grid-template-columns:1fr; }
+    .timer-display{ font-size:42px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="topbar">
+    <div class="topbar-left">
+      <span class="dot"></span>
+      <span class="brand">CONTROLE DE HORAS</span>
+    </div>
+    <div class="today-pill" id="dateLabel">—</div>
+  </div>
+
+  <div class="stats">
+    <div class="stat-card">
+      <div class="stat-label">Hoje</div>
+      <div class="stat-value" id="statHoje">0m</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Total registrado</div>
+      <div class="stat-value" id="statTotal">0h 0m</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Entradas</div>
+      <div class="stat-value" id="statEntradas">0</div>
+    </div>
+  </div>
+
+  <div class="panels">
+    <div class="panel">
+      <div class="panel-head">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+        CRONÔMETRO
+      </div>
+      <div class="timer-display" id="timerDisplay">00:00:00</div>
+
+      <label class="field-label">Tarefa</label>
+      <input type="text" id="timerTarefa" placeholder="Ex: Automação API CAMPUS">
+
+      <label class="field-label">Tipo</label>
+      <input type="text" id="timerTipo" placeholder="Ex: Teste">
+
+      <button class="btn btn-primary" id="timerBtn">▶ Iniciar</button>
+
+      <div class="last-row">
+        <span id="lastEntryLabel">Nenhum registro ainda</span>
+        <button class="btn-ghost" id="repeatBtn" style="display:none;">↻ Repetir</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M8 2v4M16 2v4M3 10h18"/></svg>
+        REGISTRO MANUAL
+      </div>
+
+      <div class="tabs">
+        <div class="tab active" data-mode="range">Início/Fim</div>
+        <div class="tab" data-mode="duration">Apenas duração</div>
+      </div>
+
+      <label class="field-label">Tarefa</label>
+      <input type="text" id="manualTarefa" placeholder="O que foi feito?">
+
+      <label class="field-label">Tipo</label>
+      <input type="text" id="manualTipo" placeholder="Ex: Teste, Análise, Reunião">
+
+      <div id="rangeFields">
+        <div class="grid-2">
+          <div>
+            <label class="field-label">Início</label>
+            <input type="datetime-local" id="manualInicio">
+          </div>
+          <div>
+            <label class="field-label">Fim</label>
+            <input type="datetime-local" id="manualFim">
+          </div>
+        </div>
+      </div>
+      <div id="durationFields" style="display:none;">
+        <label class="field-label">Duração (minutos)</label>
+        <input type="number" id="manualDuracao" placeholder="Ex: 45" min="1">
+      </div>
+
+      <button class="btn btn-primary" id="saveBtn">Salvar registro</button>
+
+      <div class="type-bars" id="typeBars"></div>
+    </div>
+  </div>
+
+  <div class="history">
+    <div class="history-head-row">
+      <div class="panel-head" style="margin-bottom:0;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+        HISTÓRICO
+      </div>
+      <div class="excel-actions">
+        <button class="btn-ghost" id="exportBtn">⭳ Exportar Excel</button>
+        <button class="btn-ghost" id="importBtn">⭱ Importar Excel</button>
+        <input type="file" id="importFile" accept=".xlsx,.xls" style="display:none;">
+      </div>
+    </div>
+    <div id="historyList"><div class="history-empty">Carregando…</div></div>
+  </div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+const STORAGE_KEY = 'controle-horas:entries';
+const TYPE_COLORS = ['#f5a524','#2dd4bf','#9d84f5','#e5586b','#5aa9e6','#e0c341'];
+let entries = [];
+let typeColorMap = {};
+let timerInterval = null;
+let timerStart = null;
+
+function pad(n){ return String(n).padStart(2,'0'); }
+
+function fmtDur(mins){
+  const h = Math.floor(mins/60);
+  const m = Math.round(mins%60);
+  if(h<=0) return m+'m';
+  return h+'h '+m+'m';
+}
+
+function colorForType(tipo){
+  const key = (tipo||'Geral').trim() || 'Geral';
+  if(!typeColorMap[key]){
+    const idx = Object.keys(typeColorMap).length % TYPE_COLORS.length;
+    typeColorMap[key] = TYPE_COLORS[idx];
+  }
+  return typeColorMap[key];
+}
+
+function todayStr(){
+  const d = new Date();
+  return d.toISOString().slice(0,10);
+}
+
+function updateDateLabel(){
+  const d = new Date();
+  const opts = { weekday:'short', day:'2-digit', month:'long' };
+  let s = d.toLocaleDateString('pt-BR', opts);
+  document.getElementById('dateLabel').textContent = s;
+}
+
+async function loadEntries(){
+  try{
+    const res = await window.storage.get(STORAGE_KEY, false);
+    entries = res ? JSON.parse(res.value) : [];
+  }catch(e){
+    entries = [];
+  }
+  render();
+}
+
+async function persist(){
+  try{
+    await window.storage.set(STORAGE_KEY, JSON.stringify(entries), false);
+  }catch(e){
+    console.error('Falha ao salvar', e);
+  }
+}
+
+function addEntry(entry){
+  entries.unshift(entry);
+  persist();
+  render();
+}
+
+async function deleteEntry(id){
+  entries = entries.filter(e => e.id !== id);
+  await persist();
+  render();
+}
+
+function render(){
+  renderStats();
+  renderTypeBars();
+  renderHistory();
+  renderLastEntry();
+}
+
+function renderStats(){
+  const today = todayStr();
+  const todayMins = entries.filter(e => e.date === today).reduce((a,e)=>a+e.duracaoMin,0);
+  const totalMins = entries.reduce((a,e)=>a+e.duracaoMin,0);
+  document.getElementById('statHoje').textContent = fmtDur(todayMins);
+  document.getElementById('statTotal').textContent = fmtDur(totalMins);
+  document.getElementById('statEntradas').textContent = entries.length;
+}
+
+function renderTypeBars(){
+  const byType = {};
+  entries.forEach(e=>{
+    const key = (e.tipo||'Geral').trim() || 'Geral';
+    byType[key] = (byType[key]||0) + e.duracaoMin;
+  });
+  const box = document.getElementById('typeBars');
+  const keys = Object.keys(byType).sort((a,b)=>byType[b]-byType[a]);
+  if(keys.length===0){ box.innerHTML=''; return; }
+  const max = Math.max(...keys.map(k=>byType[k]));
+  box.innerHTML = keys.map(k=>{
+    const pct = Math.max(4, Math.round((byType[k]/max)*100));
+    const color = colorForType(k);
+    return `<div class="type-row">
+      <div class="type-name">${escapeHtml(k)}</div>
+      <div class="type-track"><div class="type-fill" style="width:${pct}%;background:${color}"></div></div>
+      <div class="type-time">${fmtDur(byType[k])}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderHistory(){
+  const list = document.getElementById('historyList');
+  if(entries.length===0){
+    list.innerHTML = '<div class="history-empty">Nenhum registro ainda. Inicie o cronômetro ou adicione manualmente.</div>';
+    return;
+  }
+  list.innerHTML = entries.slice(0,50).map(e=>{
+    const color = colorForType(e.tipo);
+    const dateFmt = new Date(e.createdAt).toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'});
+    return `<div class="history-row">
+      <span class="h-tipo-dot" style="background:${color}"></span>
+      <div class="h-main">
+        <div class="h-tarefa">${escapeHtml(e.tarefa || '(sem descrição)')}</div>
+        <div class="h-meta">${escapeHtml(e.tipo || 'Geral')} · ${dateFmt}</div>
+      </div>
+      <div class="h-dur">${fmtDur(e.duracaoMin)}</div>
+      <button class="h-del" data-id="${e.id}" title="Excluir">✕</button>
+    </div>`;
+  }).join('');
+  list.querySelectorAll('.h-del').forEach(btn=>{
+    btn.addEventListener('click', ()=> deleteEntry(btn.dataset.id));
+  });
+}
+
+function renderLastEntry(){
+  const label = document.getElementById('lastEntryLabel');
+  const repeatBtn = document.getElementById('repeatBtn');
+  if(entries.length===0){
+    label.textContent = 'Nenhum registro ainda';
+    repeatBtn.style.display = 'none';
+    return;
+  }
+  const last = entries[0];
+  label.innerHTML = `Última: <b>${escapeHtml(last.tarefa || 'Sem tarefa')}</b> (${escapeHtml(last.tipo||'Geral')})`;
+  repeatBtn.style.display = 'inline-flex';
+  repeatBtn.onclick = ()=>{
+    document.getElementById('timerTarefa').value = last.tarefa || '';
+    document.getElementById('timerTipo').value = last.tipo || '';
+  };
+}
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// ---- Timer ----
+function updateTimerDisplay(){
+  if(!timerStart) return;
+  const diffSec = Math.floor((Date.now() - timerStart)/1000);
+  const h = Math.floor(diffSec/3600);
+  const m = Math.floor((diffSec%3600)/60);
+  const s = diffSec%60;
+  document.getElementById('timerDisplay').textContent = `${pad(h)}:${pad(m)}:${pad(s)}`;
+}
+
+document.getElementById('timerBtn').addEventListener('click', ()=>{
+  const btn = document.getElementById('timerBtn');
+  const display = document.getElementById('timerDisplay');
+  if(!timerInterval){
+    timerStart = Date.now();
+    timerInterval = setInterval(updateTimerDisplay, 1000);
+    btn.textContent = '■ Parar';
+    btn.classList.add('btn-stop');
+    display.classList.add('running');
+  } else {
+    clearInterval(timerInterval);
+    timerInterval = null;
+    const diffMin = Math.max(1, Math.round((Date.now()-timerStart)/60000));
+    const now = new Date();
+    addEntry({
+      id: 'e'+Date.now(),
+      tarefa: document.getElementById('timerTarefa').value.trim(),
+      tipo: document.getElementById('timerTipo').value.trim(),
+      duracaoMin: diffMin,
+      date: todayStr(),
+      createdAt: now.toISOString()
+    });
+    display.textContent = '00:00:00';
+    display.classList.remove('running');
+    btn.textContent = '▶ Iniciar';
+    btn.classList.remove('btn-stop');
+    timerStart = null;
+  }
+});
+
+// ---- Manual entry ----
+let manualMode = 'range';
+document.querySelectorAll('.tab').forEach(tab=>{
+  tab.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    tab.classList.add('active');
+    manualMode = tab.dataset.mode;
+    document.getElementById('rangeFields').style.display = manualMode==='range' ? 'block':'none';
+    document.getElementById('durationFields').style.display = manualMode==='duration' ? 'block':'none';
+  });
+});
+
+document.getElementById('saveBtn').addEventListener('click', ()=>{
+  const tarefa = document.getElementById('manualTarefa').value.trim();
+  const tipo = document.getElementById('manualTipo').value.trim();
+  let duracaoMin, createdAt;
+
+  if(manualMode === 'range'){
+    const iniVal = document.getElementById('manualInicio').value;
+    const fimVal = document.getElementById('manualFim').value;
+    if(!iniVal || !fimVal){ alert('Preencha início e fim.'); return; }
+    const ini = new Date(iniVal);
+    const fim = new Date(fimVal);
+    if(fim <= ini){ alert('O fim deve ser depois do início.'); return; }
+    duracaoMin = Math.round((fim-ini)/60000);
+    createdAt = ini.toISOString();
+  } else {
+    const dur = parseFloat(document.getElementById('manualDuracao').value);
+    if(!dur || dur<=0){ alert('Informe uma duração válida.'); return; }
+    duracaoMin = dur;
+    createdAt = new Date().toISOString();
+  }
+
+  addEntry({
+    id: 'e'+Date.now(),
+    tarefa, tipo, duracaoMin,
+    date: createdAt.slice(0,10),
+    createdAt
+  });
+
+  document.getElementById('manualTarefa').value = '';
+  document.getElementById('manualTipo').value = '';
+  document.getElementById('manualInicio').value = '';
+  document.getElementById('manualFim').value = '';
+  document.getElementById('manualDuracao').value = '';
+});
+
+// ---- Excel: exportar / importar ----
+function entriesToRows(){
+  return entries.map(e => ({
+    ID: e.id,
+    Tarefa: e.tarefa || '',
+    Tipo: e.tipo || 'Geral',
+    'Duração (min)': e.duracaoMin,
+    Data: e.date,
+    'Criado em': e.createdAt
+  }));
+}
+
+document.getElementById('exportBtn').addEventListener('click', ()=>{
+  if(typeof XLSX === 'undefined'){
+    alert('Não foi possível carregar a biblioteca de Excel. Verifique sua conexão e tente de novo.');
+    return;
+  }
+  const rows = entriesToRows();
+  const ws = XLSX.utils.json_to_sheet(rows.length ? rows : [{ID:'',Tarefa:'',Tipo:'',['Duração (min)']:'',Data:'',['Criado em']:''}]);
+  ws['!cols'] = [{wch:14},{wch:36},{wch:16},{wch:14},{wch:12},{wch:22}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Registros');
+  const dataStr = todayStr();
+  XLSX.writeFile(wb, `controle-de-horas_${dataStr}.xlsx`);
+});
+
+document.getElementById('importBtn').addEventListener('click', ()=>{
+  document.getElementById('importFile').click();
+});
+
+document.getElementById('importFile').addEventListener('change', (ev)=>{
+  const file = ev.target.files[0];
+  if(!file) return;
+  if(typeof XLSX === 'undefined'){
+    alert('Não foi possível carregar a biblioteca de Excel. Verifique sua conexão e tente de novo.');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = (e)=>{
+    try{
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data, { type:'array' });
+      const sheetName = wb.SheetNames[0];
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName]);
+      const imported = rows
+        .filter(r => r['Duração (min)'] !== undefined && r['Duração (min)'] !== '')
+        .map(r => ({
+          id: String(r.ID || ('e'+Date.now()+Math.random().toString(36).slice(2))),
+          tarefa: r.Tarefa || '',
+          tipo: r.Tipo || 'Geral',
+          duracaoMin: Number(r['Duração (min)']) || 0,
+          date: r.Data || todayStr(),
+          createdAt: r['Criado em'] || new Date().toISOString()
+        }));
+      if(imported.length === 0){
+        alert('Nenhum registro válido encontrado na planilha.');
+        return;
+      }
+      const merge = confirm(`${imported.length} registro(s) encontrado(s).\n\nOK = mesclar com os dados atuais\nCancelar = substituir todos os dados atuais`);
+      if(merge){
+        const existingIds = new Set(entries.map(e=>e.id));
+        imported.forEach(e => { if(!existingIds.has(e.id)) entries.push(e); });
+      } else {
+        entries = imported;
+      }
+      entries.sort((a,b)=> new Date(b.createdAt) - new Date(a.createdAt));
+      persist();
+      render();
+      alert('Importação concluída.');
+    }catch(err){
+      console.error(err);
+      alert('Não foi possível ler esse arquivo. Confirme que é um .xlsx válido.');
+    }
+    ev.target.value = '';
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+updateDateLabel();
+loadEntries();
+</script>
+</body>
+</html>
