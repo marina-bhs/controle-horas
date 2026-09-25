@@ -94,14 +94,25 @@
     display:block; font-size:11px; font-weight:700; letter-spacing:.06em;
     color:var(--muted); text-transform:uppercase; margin:14px 0 7px;
   }
-  input[type=text], input[type=datetime-local], input[type=number], input[type=date]{
+  input[type=text], input[type=datetime-local], input[type=number], input[type=date], textarea{
     width:100%; background:var(--input-bg); border:1px solid var(--card-border);
     color:var(--text); font-family:'Inter', sans-serif; font-size:14px;
     padding:11px 13px; border-radius:9px; outline:none;
     color-scheme: dark;
   }
-  input::placeholder{ color:#565b63; }
-  input:focus{ border-color:#3a4048; }
+  textarea{ resize:vertical; line-height:1.5; }
+  input::placeholder, textarea::placeholder{ color:#565b63; }
+  input:focus, textarea:focus{ border-color:#3a4048; }
+
+  .view-tabs{
+    display:flex; gap:6px; background:var(--input-bg); padding:4px; border-radius:10px;
+    margin-bottom:18px; max-width:340px;
+  }
+  .view-tab{
+    flex:1; text-align:center; padding:9px 0; border-radius:7px; font-size:13px;
+    font-weight:600; color:var(--muted); cursor:pointer; user-select:none;
+  }
+  .view-tab.active{ background:var(--card-border); color:var(--text); }
 
   .btn{
     width:100%; border:none; border-radius:10px; padding:13px 16px;
@@ -219,6 +230,13 @@
     <div class="today-pill" id="dateLabel">—</div>
   </div>
 
+  <div class="view-tabs">
+    <div class="view-tab active" data-view="registro">Registro</div>
+    <div class="view-tab" data-view="notas">Notas do dia</div>
+  </div>
+
+  <div id="viewRegistro">
+
   <div class="stats">
     <div class="stat-card">
       <div class="stat-label">Hoje</div>
@@ -318,6 +336,39 @@
     <div id="historyList"><div class="history-empty">Carregando…</div></div>
   </div>
 
+  </div>
+
+  <div id="viewNotas" style="display:none;">
+    <div class="panel">
+      <div class="panel-head">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M8 2v4M16 2v4M4 10h16"/></svg>
+        NOTAS DO DIA
+      </div>
+
+      <label class="field-label">Data</label>
+      <input type="date" id="noteDate">
+
+      <label class="field-label">O que foi feito</label>
+      <textarea id="noteText" rows="8" placeholder="Descreva o que foi feito nesse dia..."></textarea>
+
+      <button class="btn btn-primary" id="noteSaveBtn">Salvar nota</button>
+    </div>
+
+    <div class="history" style="margin-top:14px;">
+      <div class="panel-head">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+        HISTÓRICO DE NOTAS
+      </div>
+      <div class="filter-row" id="notesFilterRow">
+        <input type="text" id="notesFilterTexto" placeholder="Buscar nas notas...">
+        <input type="date" id="notesFilterDe" title="De">
+        <input type="date" id="notesFilterAte" title="Até">
+        <button class="btn-ghost" id="notesFilterClearBtn">Limpar</button>
+      </div>
+      <div id="notesList"><div class="history-empty">Nenhuma nota registrada ainda.</div></div>
+    </div>
+  </div>
+
 </div>
 
 <div class="modal-overlay hidden" id="editModal">
@@ -346,8 +397,10 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 const STORAGE_KEY = 'controle-horas:entries';
+const NOTES_KEY = 'controle-horas:notas';
 const TYPE_COLORS = ['#f5a524','#2dd4bf','#9d84f5','#e5586b','#5aa9e6','#e0c341'];
 let entries = [];
+let notes = {};
 let typeColorMap = {};
 let timerInterval = null;
 let timerStart = null;
@@ -412,6 +465,112 @@ async function deleteEntry(id){
   await persist();
   render();
 }
+
+// ---- Notas do dia ----
+function loadNotes(){
+  try{
+    const raw = localStorage.getItem(NOTES_KEY);
+    notes = raw ? JSON.parse(raw) : {};
+  }catch(e){
+    notes = {};
+  }
+}
+
+function persistNotes(){
+  try{
+    localStorage.setItem(NOTES_KEY, JSON.stringify(notes));
+  }catch(e){
+    console.error('Falha ao salvar nota', e);
+    alert('Não foi possível salvar a nota. O armazenamento do navegador pode estar cheio ou desabilitado.');
+  }
+}
+
+function openNoteDate(date){
+  document.getElementById('noteDate').value = date;
+  document.getElementById('noteText').value = notes[date] || '';
+}
+
+const notesFilterState = { texto:'', de:'', ate:'' };
+
+function getFilteredNoteDates(){
+  return Object.keys(notes).filter(date=>{
+    if(notesFilterState.texto && !notes[date].toLowerCase().includes(notesFilterState.texto.toLowerCase())) return false;
+    if(notesFilterState.de && date < notesFilterState.de) return false;
+    if(notesFilterState.ate && date > notesFilterState.ate) return false;
+    return true;
+  });
+}
+
+document.getElementById('notesFilterTexto').addEventListener('input', (ev)=>{
+  notesFilterState.texto = ev.target.value.trim();
+  renderNotesList();
+});
+document.getElementById('notesFilterDe').addEventListener('change', (ev)=>{
+  notesFilterState.de = ev.target.value;
+  renderNotesList();
+});
+document.getElementById('notesFilterAte').addEventListener('change', (ev)=>{
+  notesFilterState.ate = ev.target.value;
+  renderNotesList();
+});
+document.getElementById('notesFilterClearBtn').addEventListener('click', ()=>{
+  notesFilterState.texto = ''; notesFilterState.de = ''; notesFilterState.ate = '';
+  document.getElementById('notesFilterTexto').value = '';
+  document.getElementById('notesFilterDe').value = '';
+  document.getElementById('notesFilterAte').value = '';
+  renderNotesList();
+});
+
+function renderNotesList(){
+  const list = document.getElementById('notesList');
+  if(Object.keys(notes).length===0){
+    list.innerHTML = '<div class="history-empty">Nenhuma nota registrada ainda.</div>';
+    return;
+  }
+  const dates = getFilteredNoteDates().sort((a,b)=> b.localeCompare(a));
+  if(dates.length===0){
+    list.innerHTML = '<div class="history-empty">Nenhuma nota encontrada para esse filtro.</div>';
+    return;
+  }
+  list.innerHTML = dates.map(date=>{
+    const dateFmt = new Date(date+'T00:00:00').toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit', year:'numeric'});
+    const preview = notes[date].length > 80 ? notes[date].slice(0,80)+'…' : notes[date];
+    return `<div class="history-row">
+      <div class="h-main">
+        <div class="h-tarefa">${escapeHtml(dateFmt)}</div>
+        <div class="h-meta">${escapeHtml(preview || '(vazio)')}</div>
+      </div>
+      <button class="h-edit" data-date="${date}" title="Editar">✎</button>
+    </div>`;
+  }).join('');
+  list.querySelectorAll('.h-edit').forEach(btn=>{
+    btn.addEventListener('click', ()=> openNoteDate(btn.dataset.date));
+  });
+}
+
+document.getElementById('noteSaveBtn').addEventListener('click', ()=>{
+  const date = document.getElementById('noteDate').value;
+  const text = document.getElementById('noteText').value.trim();
+  if(!date){ alert('Selecione uma data.'); return; }
+  if(text){ notes[date] = text; } else { delete notes[date]; }
+  persistNotes();
+  renderNotesList();
+});
+
+document.getElementById('noteDate').addEventListener('change', (ev)=>{
+  openNoteDate(ev.target.value);
+});
+
+// ---- Navegação entre abas principais ----
+document.querySelectorAll('.view-tab').forEach(tab=>{
+  tab.addEventListener('click', ()=>{
+    document.querySelectorAll('.view-tab').forEach(t=>t.classList.remove('active'));
+    tab.classList.add('active');
+    const view = tab.dataset.view;
+    document.getElementById('viewRegistro').style.display = view==='registro' ? 'block':'none';
+    document.getElementById('viewNotas').style.display = view==='notas' ? 'block':'none';
+  });
+});
 
 function render(){
   renderStats();
@@ -770,6 +929,9 @@ document.getElementById('importFile').addEventListener('change', (ev)=>{
 
 updateDateLabel();
 loadEntries();
+loadNotes();
+openNoteDate(todayStr());
+renderNotesList();
 </script>
 </body>
 </html>
